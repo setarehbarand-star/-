@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>شبیه‌ساز مدرسه سه بعدی</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Tahoma', sans-serif;
+            background-color: #f0f0f0;
+        }
+        #info-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(0, 50, 100, 0.7);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #aaddff;
+            text-align: right;
+            font-size: 16px;
+            width: 250px;
+            z-index: 10;
+        }
+        #info-panel h2 {
+            margin-top: 0;
+            font-size: 20px;
+            border-bottom: 1px solid #fff;
+            padding-bottom: 5px;
+        }
+        #message-box {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(255, 255, 0, 0.85);
+            color: black;
+            padding: 20px;
+            border-radius: 15px;
+            border: 3px solid #ffa500;
+            font-size: 22px;
+            font-weight: bold;
+            display: none;
+            text-align: center;
+            z-index: 10;
+        }
+        /* استایل برای راهنمای اولیه قفل کردن موس */
+        #blocker {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #instructions {
+            width: 50%;
+            text-align: center;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <!-- پنل نمایش اطلاعات بازی -->
+    <div id="info-panel">
+        <h2>وضعیت مدرسه</h2>
+        <p><strong>زمان:</strong> <span id="time-display">10:00</span></p>
+        <p><strong>وضعیت:</strong> <span id="status-display">زنگ تفریح</span></p>
+        <p><strong>وظیفه:</strong> <span id="task-display">در حیاط استراحت کن.</span></p>
+    </div>
+
+    <!-- جعبه پیام برای راهنمایی بازیکن -->
+    <div id="message-box">
+        پیامی در اینجا نمایش داده می‌شود
+    </div>
+
+    <!-- صفحه راهنما برای فعال‌سازی PointerLock -->
+    <div id="blocker">
+        <div id="instructions">
+            <p>برای شروع، روی این صفحه کلیک کنید</p>
+            <p>(از کلیدهای W, A, S, D برای حرکت و موس برای نگاه کردن استفاده کنید)</p>
+        </div>
+    </div>
+
+    <!-- کتابخانه Three.js را از CDN بارگذاری می‌کنیم -->
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.157.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.157.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        // وارد کردن ماژول‌های لازم از کتابخانه Three.js
+        import * as THREE from 'three';
+        // <<< جدید: وارد کردن کنترلر PointerLockControls
+        import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+
+        // ===================================
+        // 1. تنظیمات اولیه صحنه (Scene)
+        // ===================================
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB);
+        scene.fog = new THREE.Fog(0x87CEEB, 1, 70);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        // موقعیت اولیه دوربین داخل سر بازیکن خواهد بود، پس آن را در 0,0,0 نسبت به بازیکن قرار می‌دهیم
+        camera.position.set(0, 1.5, 0); 
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        // <<< جدید: تنظیم PointerLockControls
+        const controls = new PointerLockControls(camera, document.body);
+        const blocker = document.getElementById('blocker');
+        const instructions = document.getElementById('instructions');
+
+        instructions.addEventListener('click', () => {
+            controls.lock();
+        });
+
+        controls.addEventListener('lock', () => {
+            instructions.parentElement.style.display = 'none';
+        });
+
+        controls.addEventListener('unlock', () => {
+            instructions.parentElement.style.display = 'flex';
+        });
+
+        // اضافه کردن دوربین به صحنه لازم است تا کنترلر کار کند
+        scene.add(controls.getObject());
+
+
+        // ===================================
+        // 2. نورپردازی صحنه
+        // ===================================
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        directionalLight.position.set(-10, 20, 10);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.camera.top = 30; // افزایش محدوده سایه
+        directionalLight.shadow.camera.bottom = -30;
+        directionalLight.shadow.camera.left = -30;
+        directionalLight.shadow.camera.right = 30;
+        scene.add(directionalLight);
+
+        // ===================================
+        // 3. ساخت محیط مدرسه
+        // ===================================
+
+        const groundGeometry = new THREE.PlaneGeometry(100, 100);
+        const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x559020 });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        const schoolBuilding = createBox(30, 10, 20, 0xDEB887, { x: 0, y: 5, z: -20 });
+        schoolBuilding.castShadow = true;
+        scene.add(schoolBuilding);
+
+        const classroom = new THREE.Group();
+        const wallMaterial = new THREE.MeshStandardMaterial({ color: 0xf0e5d1, side: THREE.BackSide });
+        const floorMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
+        const classFloor = new THREE.Mesh(new THREE.PlaneGeometry(14, 18), floorMaterial);
+        classFloor.rotation.x = -Math.PI / 2;
+        classFloor.position.y = 0.1;
+        const backWall = new THREE.Mesh(new THREE.BoxGeometry(14, 6, 0.2), wallMaterial);
+        backWall.position.set(0, 3, -9);
+        const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.2, 6, 18), wallMaterial);
+        leftWall.position.set(-7, 3, 0);
+        const rightWall = new THREE.Mesh(new THREE.BoxGeometry(0.2, 6, 18), wallMaterial);
+        rightWall.position.set(7, 3, 0);
+        classroom.add(classFloor, backWall, leftWall, rightWall);
+        classroom.position.z = -19;
+        scene.add(classroom);
+
+        const desks = [];
+        for (let i = 0; i < 3; i++) {
+            for (let j = 0; j < 2; j++) {
+                const desk = createDesk({x: -3 + j * 6, y: 0, z: -24 + i * 4});
+                desks.push(desk);
+                scene.add(desk);
+            }
+        }
+        
+        const teacherDesk = createDesk({x: 0, y: 0, z: -13});
+        teacherDesk.scale.set(1.2, 1.2, 1.2);
+        scene.add(teacherDesk);
+
+        const foodTable = createBox(4, 1, 2, 0x8B4513, {x: 15, y: 0.5, z: 5});
+        scene.add(foodTable);
+        let foodObject = createBox(0.5, 0.5, 0.5, 0xff6347, {x: 15, y: 1.25, z: 5});
+        scene.add(foodObject);
+
+        // ===================================
+        // 4. ساخت شخصیت‌ها
+        // ===================================
+        
+        function createCharacter(color, position, isPlayer = false) {
+            // <<< بازیکن دیگر به عنوان یک کپسول قابل مشاهده رندر نمی‌شود
+            if (isPlayer) return null;
+
+            const char = new THREE.Mesh(
+                new THREE.CapsuleGeometry(0.5, 1, 4, 8),
+                new THREE.MeshStandardMaterial({ color: color })
+            );
+            char.position.set(position.x, 1.5, position.z);
+            char.castShadow = true;
+            
+            const eye = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), new THREE.MeshBasicMaterial({color: 0x000000}));
+            eye.position.set(0, 0.2, 0.5);
+            char.add(eye);
+
+            return char;
+        }
+        
+        // بازیکن دیگر یک شیء قابل مشاهده نیست، بلکه موقعیت دوربین است
+        const player = {
+            position: new THREE.Vector3(0, 1.5, 10),
+            velocity: new THREE.Vector3(),
+            direction: new THREE.Vector3(),
+            hasFood: false,
+            isSitting: false,
+        };
+
+        const students = [];
+        const studentColors = [0xffa500, 0x00ff00, 0xff00ff, 0xffff00, 0x00ffff];
+        for (let i = 0; i < 5; i++) {
+            const student = createCharacter(studentColors[i], { x: -5 + i * 2.5, y: 0, z: 12 });
+            student.targetPosition = new THREE.Vector3();
+            students.push(student);
+            scene.add(student);
+        }
+
+        const teacher = createCharacter(0x800080, { x: 0, y: 0, z: -10 });
+        teacher.targetPosition = new THREE.Vector3();
+        scene.add(teacher);
+
+        // ===================================
+        // 5. منطق بازی
+        // ===================================
+
+        let gameState = 'RECESS';
+        let gameTime = 10 * 60;
+        const timeSpeed = 0.1;
+        
+        const locations = {
+            classSeats: [
+                new THREE.Vector3(-3, 1.5, -24), new THREE.Vector3(3, 1.5, -24),
+                new THREE.Vector3(-3, 1.5, -20), new THREE.Vector3(3, 1.5, -20),
+                new THREE.Vector3(-3, 1.5, -16),
+            ],
+            playerSeat: new THREE.Vector3(3, 1.5, -16),
+            teacherDeskPos: new THREE.Vector3(0, 1.5, -13),
+            recessSpots: [
+                new THREE.Vector3(12, 1.5, 8), new THREE.Vector3(18, 1.5, 3),
+                new THREE.Vector3(10, 1.5, -2), new THREE.Vector3(16, 1.5, -5),
+                new THREE.Vector3(-15, 1.5, 5), new THREE.Vector3(-10, 1.5, 10),
+            ],
+            foodTablePos: new THREE.Vector3(15, 1.5, 5),
+            classEntrance: new THREE.Vector3(0, 1.5, -10),
+        };
+        students.forEach((student, i) => student.classSeat = locations.classSeats[i]);
+        teacher.classSeat = locations.teacherDeskPos;
+
+        const keys = {};
+        document.addEventListener('keydown', (e) => keys[e.key.toLowerCase()] = true);
+        document.addEventListener('keyup', (e) => keys[e.key.toLowerCase()] = false);
+
+        // <<< بازنویسی کامل تابع حرکت بازیکن
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+        document.addEventListener('keydown', (event) => {
+            switch (event.code) {
+                case 'ArrowUp': case 'KeyW': moveForward = true; break;
+                case 'ArrowLeft': case 'KeyA': moveLeft = true; break;
+                case 'ArrowDown': case 'KeyS': moveBackward = true; break;
+                case 'ArrowRight': case 'KeyD': moveRight = true; break;
+            }
+        });
+        document.addEventListener('keyup', (event) => {
+            switch (event.code) {
+                case 'ArrowUp': case 'KeyW': moveForward = false; break;
+                case 'ArrowLeft': case 'KeyA': moveLeft = false; break;
+                case 'ArrowDown': case 'KeyS': moveBackward = false; break;
+                case 'ArrowRight': case 'KeyD': moveRight = false; break;
+            }
+        });
+        
+        const clock = new THREE.Clock(); // برای محاسبه delta time
+        
+        function updatePlayerMovement() {
+            if (!controls.isLocked || player.isSitting) {
+                player.velocity.x = 0;
+                player.velocity.z = 0;
+                return;
+            }
+            
+            const delta = clock.getDelta(); // زمان گذشته از آخرین فریم
+            const speed = 5.0; // سرعت حرکت بر حسب متر بر ثانیه
+
+            player.velocity.x -= player.velocity.x * 10.0 * delta;
+            player.velocity.z -= player.velocity.z * 10.0 * delta;
+
+            player.direction.z = Number(moveForward) - Number(moveBackward);
+            player.direction.x = Number(moveRight) - Number(moveLeft);
+            player.direction.normalize();
+
+            if (moveForward || moveBackward) player.velocity.z -= player.direction.z * speed * delta;
+            if (moveLeft || moveRight) player.velocity.x -= player.direction.x * speed * delta;
+
+            controls.moveRight(-player.velocity.x);
+            controls.moveForward(-player.velocity.z);
+
+            // به روز رسانی موقعیت بازیکن بر اساس موقعیت دوربین
+            player.position.copy(controls.getObject().position);
+            player.position.y = 1.5; // اطمینان از اینکه بازیکن روی زمین است
+        }
+
+        // تابع updateCamera دیگر لازم نیست
+        // function updateCamera() { ... }
+
+        function updateNPCs() {
+            const speed = 0.05;
+            students.forEach(student => {
+                if (student.position.distanceTo(student.targetPosition) > 1) {
+                    student.lookAt(student.targetPosition);
+                    student.position.lerp(student.targetPosition, speed);
+                }
+            });
+            if (teacher.position.distanceTo(teacher.targetPosition) > 1) {
+                teacher.lookAt(teacher.targetPosition);
+                teacher.position.lerp(teacher.targetPosition, speed);
+            }
+        }
+        
+        const messageBox = document.getElementById('message-box');
+        function showMessage(text, duration = 3000) {
+            messageBox.textContent = text;
+            messageBox.style.display = 'block';
+            setTimeout(() => messageBox.style.display = 'none', duration);
+        }
+
+        function updateGameState() {
+            gameTime += timeSpeed;
+            const minutes = Math.floor(gameTime % 60).toString().padStart(2, '0');
+            const hours = Math.floor(gameTime / 60).toString().padStart(2, '0');
+            document.getElementById('time-display').innerText = `${hours}:${minutes}`;
+
+            checkInteractions();
+            checkPunishment();
+
+            switch (gameState) {
+                case 'CLASS_TIME':
+                    if (gameTime >= 10 * 60) {
+                        gameState = 'GO_TO_RECESS';
+                        player.isSitting = false;
+                        controls.lock(); // اطمینان از اینکه بازیکن می‌تواند حرکت کند
+                        document.getElementById('status-display').innerText = 'حرکت به سمت حیاط';
+                        document.getElementById('task-display').innerText = 'به حیاط برو و استراحت کن.';
+                        showMessage('زنگ تفریح خورد!');
+                        students.forEach((student, i) => student.targetPosition.copy(locations.recessSpots[i]));
+                        teacher.targetPosition.copy(locations.recessSpots[5]);
+                    }
+                    break;
+                case 'GO_TO_RECESS':
+                    if (areAllNPCsAtTarget()) {
+                        gameState = 'RECESS';
+                        document.getElementById('status-display').innerText = 'زنگ تفریح';
+                        document.getElementById('task-display').innerText = 'غذا بردار و با دوستانت صحبت کن.';
+                    }
+                    break;
+                case 'RECESS':
+                    if (gameTime >= 10 * 60 + 30) {
+                        gameState = 'GO_TO_CLASS';
+                        document.getElementById('status-display').innerText = 'بازگشت به کلاس';
+                        document.getElementById('task-display').innerText = 'به کلاس برگرد. [E] برای نشستن';
+                        showMessage('زنگ تفریح تمام شد!');
+                        students.forEach(student => student.targetPosition.copy(student.classSeat));
+                        teacher.targetPosition.copy(teacher.classSeat);
+                    }
+                    break;
+                case 'GO_TO_CLASS':
+                    if (areAllNPCsAtTarget() && player.isSitting) {
+                        gameState = 'CLASS_TIME';
+                        document.getElementById('status-display').innerText = 'زمان کلاس';
+                        document.getElementById('task-display').innerText = 'در حال درس خواندن...';
+                        if (gameTime > 12 * 60) gameTime = 8 * 60;
+                    }
+                    break;
+            }
+        }
+
+        function areAllNPCsAtTarget() {
+            let allAtTarget = true;
+            students.forEach(s => { if (s.position.distanceTo(s.targetPosition) > 1.5) allAtTarget = false; });
+            if (teacher.position.distanceTo(teacher.targetPosition) > 1.5) allAtTarget = false;
+            return allAtTarget;
+        }
+
+        function checkInteractions() {
+            if (foodObject && player.position.distanceTo(locations.foodTablePos) < 2) {
+                if (!player.hasFood) {
+                    showMessage('غذا را برداشتی!', 2000);
+                    player.hasFood = true;
+                    scene.remove(foodObject);
+                    foodObject = null;
+                }
+            }
+            if (gameState === 'RECESS' && player.hasFood) {
+                students.forEach(student => {
+                    if (player.position.distanceTo(student.position) < 2) {
+                        showMessage('داری با دوستت غذا می‌خوری...', 2500);
+                    }
+                });
+            }
+            if (keys['e']) {
+                if (player.position.distanceTo(locations.playerSeat) < 2 && !player.isSitting) {
+                    player.isSitting = true;
+                    // موقعیت بازیکن را مستقیما تنظیم نمی‌کنیم، بلکه کنترلر را قفل می‌کنیم
+                    controls.getObject().position.copy(locations.playerSeat);
+                    // برای نگاه به معلم، باید دوربین را بچرخانیم که با PointerLock دشوار است.
+                    // در این حالت ساده، فقط بازیکن را می‌نشانیم.
+                    showMessage('پشت میز نشستی و آماده درسی!', 2500);
+                    document.getElementById('task-display').innerText = 'در حال درس خواندن...';
+                }
+                keys['e'] = false;
+            }
+        }
+        
+        function checkPunishment() {
+            const isLate = (gameState === 'GO_TO_CLASS');
+            const playerInClass = player.position.z < -10;
+            const playerNearTeacher = player.position.distanceTo(teacher.position) < 3;
+            if (isLate && !playerInClass && playerNearTeacher) {
+                showMessage('چرا دیر اومدی کلاس؟ تنبیهی!', 4000);
+            }
+        }
+        
+        function initializePositions() {
+            students.forEach((student, i) => student.targetPosition.copy(locations.recessSpots[i]));
+            teacher.targetPosition.copy(locations.recessSpots[5]);
+            document.getElementById('status-display').innerText = 'زنگ تفریح';
+            document.getElementById('task-display').innerText = 'غذا بردار و با دوستانت صحبت کن.';
+        }
+        initializePositions();
+
+        // ===================================
+        // 6. حلقه اصلی بازی (Game Loop)
+        // ===================================
+        function animate() {
+            requestAnimationFrame(animate);
+            updatePlayerMovement();
+            updateNPCs();
+            updateGameState();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // ===================================
+        // 7. توابع کمکی
+        // ===================================
+        function createBox(width, height, depth, color, pos) {
+            const geometry = new THREE.BoxGeometry(width, height, depth);
+            const material = new THREE.MeshStandardMaterial({ color: color });
+            const box = new THREE.Mesh(geometry, material);
+            box.position.set(pos.x, pos.y, pos.z);
+            box.castShadow = true;
+            box.receiveShadow = true;
+            return box;
+        }
+        function createDesk(pos) {
+            const deskGroup = new THREE.Group();
+            const top = createBox(2, 0.1, 1, 0x8B4513, { x: 0, y: 1, z: 0 });
+            const seat = createBox(0.8, 0.1, 0.8, 0xcd853f, { x: 0, y: 0.5, z: 0.8 });
+            deskGroup.add(top, seat);
+            deskGroup.position.set(pos.x, pos.y, pos.z);
+            return deskGroup;
+        }
+        
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+    </script>
+</body>
+</html>
